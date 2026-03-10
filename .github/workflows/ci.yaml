@@ -152,7 +152,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # Only build arm64 on main (where we push). PRs only need amd64 to
+          # verify the build -- arm64 cross-compilation via QEMU adds ~15 min.
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -161,7 +163,7 @@ jobs:
 
   e2e:
     name: E2E Tests
-    needs: build
+    needs: [lint, test, security-scan]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
