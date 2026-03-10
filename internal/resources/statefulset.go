@@ -491,7 +491,7 @@ func buildInitContainers(instance *openclawv1alpha1.OpenClawInstance, skillPacks
 		// overwrite mode uses busybox (lightweight, only needs cp).
 		// Note: ghcr.io/jqlang/jq and ghcr.io/astral-sh/uv base tags are
 		// distroless (no shell), so we cannot use them with "sh -c".
-		initImage := "busybox:1.37"
+		initImage := ApplyRegistryOverride("busybox:1.37", instance.Spec.Registry)
 		if instance.Spec.Config.MergeMode == ConfigMergeModeMerge || instance.Spec.Config.Format == ConfigFormatJSON5 {
 			initImage = GetImage(instance)
 		}
@@ -1018,7 +1018,7 @@ uv --version`
 
 	return corev1.Container{
 		Name:                     "init-python",
-		Image:                    UvImage,
+		Image:                    ApplyRegistryOverride(UvImage, instance.Spec.Registry),
 		Command:                  []string{"sh", "-c", script},
 		ImagePullPolicy:          corev1.PullIfNotPresent,
 		Env:                      env,
@@ -1664,6 +1664,7 @@ func buildOllamaModelPullInitContainer(instance *openclawv1alpha1.OpenClawInstan
 	if instance.Spec.Ollama.Image.Digest != "" {
 		image = repo + "@" + instance.Spec.Ollama.Image.Digest
 	}
+	image = ApplyRegistryOverride(image, instance.Spec.Registry)
 
 	return corev1.Container{
 		Name:                     "init-ollama",
