@@ -717,6 +717,21 @@ const skillInstallWrapper = `_install_skill() {
   fi
 }`
 
+// normalizeClawHubSlug strips the @owner/ prefix from ClawHub skill identifiers.
+// ClawHub CLI expects bare skill names (e.g. "mcp-server-fetch"), but users and
+// documentation sometimes use "@owner/skill-name" format from the ClawHub website URL.
+func normalizeClawHubSlug(entry string) string {
+	// npm: and pack: prefixes are not ClawHub slugs
+	if strings.HasPrefix(entry, "npm:") || strings.HasPrefix(entry, "pack:") {
+		return entry
+	}
+	slug := strings.TrimPrefix(entry, "@")
+	if i := strings.LastIndex(slug, "/"); i >= 0 {
+		slug = slug[i+1:]
+	}
+	return slug
+}
+
 // parseSkillEntry returns the shell command to install a single skill entry.
 // Entries prefixed with "npm:" are installed via `npm install` into the PVC
 // node_modules. All other entries use the _install_skill wrapper around
@@ -725,7 +740,7 @@ func parseSkillEntry(entry string) string {
 	if pkg, ok := strings.CutPrefix(entry, "npm:"); ok {
 		return fmt.Sprintf("cd /home/openclaw/.openclaw && npm install %s", shellQuote(pkg))
 	}
-	return fmt.Sprintf("_install_skill %s", shellQuote(entry))
+	return fmt.Sprintf("_install_skill %s", shellQuote(normalizeClawHubSlug(entry)))
 }
 
 // hasClawHubSkills returns true if any entry is a ClawHub skill (not npm-prefixed).

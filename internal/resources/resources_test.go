@@ -4778,9 +4778,39 @@ func TestBuildInitScript_MergeMode_NoConfig(t *testing.T) {
 // Feature 3: Declarative skill installation tests
 // ---------------------------------------------------------------------------
 
+func TestNormalizeClawHubSlug(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"bare slug", "mcp-server-fetch", "mcp-server-fetch"},
+		{"@owner/slug", "@anthropic/mcp-server-fetch", "mcp-server-fetch"},
+		{"@slug (no owner)", "@mcp-server-fetch", "mcp-server-fetch"},
+		{"nested path", "@org/sub/skill-name", "skill-name"},
+		{"npm: passthrough", "npm:@openclaw/matrix", "npm:@openclaw/matrix"},
+		{"pack: passthrough", "pack:openclaw-rocks/skills/image-gen", "pack:openclaw-rocks/skills/image-gen"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeClawHubSlug(tt.input); got != tt.want {
+				t.Errorf("normalizeClawHubSlug(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseSkillEntry_ClawHub(t *testing.T) {
 	got := parseSkillEntry("@anthropic/mcp-server-fetch")
-	want := "_install_skill '@anthropic/mcp-server-fetch'"
+	want := "_install_skill 'mcp-server-fetch'"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestParseSkillEntry_ClawHub_BareSlug(t *testing.T) {
+	got := parseSkillEntry("mcp-server-fetch")
+	want := "_install_skill 'mcp-server-fetch'"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -4822,11 +4852,11 @@ func TestBuildSkillsScript_WithSkills(t *testing.T) {
 	if !strings.Contains(script, skillInstallWrapper) {
 		t.Error("script should contain the _install_skill wrapper")
 	}
-	if !strings.Contains(script, "_install_skill '@anthropic/mcp-server-fetch'") {
-		t.Error("script should contain _install_skill for @anthropic/mcp-server-fetch")
+	if !strings.Contains(script, "_install_skill 'mcp-server-fetch'") {
+		t.Error("script should contain _install_skill for mcp-server-fetch (normalized from @anthropic/mcp-server-fetch)")
 	}
-	if !strings.Contains(script, "_install_skill '@github/copilot-skill'") {
-		t.Error("script should contain _install_skill for @github/copilot-skill")
+	if !strings.Contains(script, "_install_skill 'copilot-skill'") {
+		t.Error("script should contain _install_skill for copilot-skill (normalized from @github/copilot-skill)")
 	}
 }
 
@@ -4846,8 +4876,8 @@ func TestBuildSkillsScript_MixedPrefixes(t *testing.T) {
 	if !strings.Contains(script, skillInstallWrapper) {
 		t.Error("script should contain the _install_skill wrapper (has clawhub skills)")
 	}
-	if !strings.Contains(script, "_install_skill '@anthropic/mcp-server-fetch'") {
-		t.Error("script should contain _install_skill for clawhub skill")
+	if !strings.Contains(script, "_install_skill 'mcp-server-fetch'") {
+		t.Error("script should contain _install_skill for clawhub skill (normalized)")
 	}
 	if !strings.Contains(script, "cd /home/openclaw/.openclaw && npm install '@openclaw/matrix'") {
 		t.Error("script should contain npm install for @openclaw/matrix")
@@ -4903,7 +4933,7 @@ func TestBuildSkillsScript_WrapperOrdering(t *testing.T) {
 
 	setEIdx := strings.Index(script, "set -e")
 	wrapperIdx := strings.Index(script, "_install_skill()")
-	installIdx := strings.Index(script, "_install_skill '@anthropic/mcp-server-fetch'")
+	installIdx := strings.Index(script, "_install_skill 'mcp-server-fetch'")
 
 	if setEIdx == -1 || wrapperIdx == -1 || installIdx == -1 {
 		t.Fatalf("missing expected content in script:\n%s", script)
