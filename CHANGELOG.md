@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0](https://github.com/openclaw-rocks/k8s-operator/compare/v0.14.1...v0.15.0) (2026-03-12)
+
+
+### Features
+
+* **backup:** add S3_PROVIDER for multi-cloud workload identity support ([93e22b5](https://github.com/openclaw-rocks/k8s-operator/commit/93e22b50f49dc4df4744df6a369e53bbc1c149aa))
+* **backup:** support IRSA and Pod Identity for S3 backup credentials ([8a06d85](https://github.com/openclaw-rocks/k8s-operator/commit/8a06d850965521c60f26bf7d02c7228927e70b2e)), closes [#320](https://github.com/openclaw-rocks/k8s-operator/issues/320)
+* **backup:** support workload identity and configurable S3 provider for backup credentials ([4b8e3ca](https://github.com/openclaw-rocks/k8s-operator/commit/4b8e3ca40490da53d990e4dc0fb35e44059cc62b))
+
+
+### Bug Fixes
+
+* **backup:** validate partial S3 credentials configuration ([e89c4a3](https://github.com/openclaw-rocks/k8s-operator/commit/e89c4a349c44c928738086933012606790484363))
+
 ## [0.14.1](https://github.com/openclaw-rocks/k8s-operator/compare/v0.14.0...v0.14.1) (2026-03-11)
 
 
