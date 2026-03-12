@@ -767,6 +767,12 @@ func (r *OpenClawInstanceReconciler) reconcilePVC(ctx context.Context, instance 
 	// When HPA is enabled, VolumeClaimTemplates on the StatefulSet handle
 	// per-replica PVCs - skip creating the standalone PVC.
 	if resources.IsHPAEnabled(instance) {
+		// Warn if existingClaim is set but ignored due to HPA
+		if instance.Spec.Storage.Persistence.ExistingClaim != "" {
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "ExistingClaimIgnored",
+				"storage.persistence.existingClaim %q is ignored when autoScaling is enabled - each replica gets its own PVC via VolumeClaimTemplates",
+				instance.Spec.Storage.Persistence.ExistingClaim)
+		}
 		// Warn if a standalone PVC exists that is now orphaned by the switch to VCTs.
 		orphanedPVC := &corev1.PersistentVolumeClaim{}
 		pvcName := resources.PVCName(instance)
