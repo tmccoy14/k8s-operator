@@ -229,6 +229,15 @@ spec:
 
 Config changes are detected via SHA-256 hashing and automatically trigger a rolling update. No manual restart needed.
 
+### Gateway proxy
+
+By default, each pod includes an nginx reverse proxy sidecar that forwards traffic to the OpenClaw gateway on loopback. Set `spec.gateway.enabled: false` to disable it:
+
+- Health probes and Service ports target the gateway directly on port 18789
+- `gateway.bind` is set to `0.0.0.0` instead of loopback
+- The `gateway-proxy` container and its tmp volume are omitted from the pod
+- To replace the built-in proxy with your own (e.g., Envoy, a signing proxy), disable it and add your proxy via `spec.sidecars`
+
 ### Gateway authentication
 
 The operator automatically generates a gateway token Secret for each instance and injects it into both the config JSON (`gateway.auth.mode: token`) and the `OPENCLAW_GATEWAY_TOKEN` env var. This bypasses Bonjour/mDNS pairing, which is unusable in Kubernetes.
@@ -551,7 +560,7 @@ spec:
         secretName: cloud-sql-proxy-sa
 ```
 
-Reserved init container names (`init-config`, `init-pnpm`, `init-python`, `init-skills`, `init-ollama`) are rejected by the webhook.
+Reserved init container names (`init-config`, `init-pnpm`, `init-python`, `init-skills`, `init-ollama`) are rejected by the webhook. If your sidecar replaces the built-in gateway proxy, set `spec.gateway.enabled: false` to avoid running both.
 
 ### Extra volumes and mounts
 
@@ -733,7 +742,7 @@ These behaviors are always applied - no configuration needed:
 
 | Behavior | Details |
 |----------|---------|
-| `gateway.bind=loopback` | Always injected into config; an nginx reverse proxy sidecar exposes the gateway and canvas ports for external access |
+| `gateway.bind` | When the gateway proxy sidecar is enabled (default), binds to loopback and an nginx reverse proxy handles external access. When disabled (`spec.gateway.enabled: false`), binds to `0.0.0.0` so the gateway is reachable directly. |
 | Gateway auth token | Auto-generated Secret per instance; injected into config and env |
 | Control UI origins | `gateway.controlUi.allowedOrigins` auto-injected from localhost + ingress hosts + `spec.gateway.controlUiOrigins` |
 | `OPENCLAW_DISABLE_BONJOUR=1` | Always set (mDNS does not work in Kubernetes) |

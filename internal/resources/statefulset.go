@@ -232,7 +232,11 @@ func buildContainerSecurityContext(instance *openclawv1alpha1.OpenClawInstance) 
 func buildContainers(instance *openclawv1alpha1.OpenClawInstance, gatewayTokenSecretName string) []corev1.Container {
 	containers := []corev1.Container{
 		buildMainContainer(instance, gatewayTokenSecretName),
-		buildGatewayProxyContainer(instance),
+	}
+
+	// Add gateway proxy sidecar if enabled (default: true)
+	if IsGatewayProxyEnabled(instance) {
+		containers = append(containers, buildGatewayProxyContainer(instance))
 	}
 
 	// Add Tailscale sidecar if enabled
@@ -1881,8 +1885,7 @@ func buildVolumes(instance *openclawv1alpha1.OpenClawInstance, skillPacks *Resol
 		})
 	}
 
-	// Tmp volumes: main container (read-only rootfs needs writable /tmp)
-	// and gateway proxy (nginx pid file)
+	// Tmp volume: main container (read-only rootfs needs writable /tmp)
 	volumes = append(volumes,
 		corev1.Volume{
 			Name: "tmp",
@@ -1890,13 +1893,17 @@ func buildVolumes(instance *openclawv1alpha1.OpenClawInstance, skillPacks *Resol
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
-		corev1.Volume{
+	)
+
+	// Gateway proxy tmp volume (nginx pid file) — only when proxy is enabled
+	if IsGatewayProxyEnabled(instance) {
+		volumes = append(volumes, corev1.Volume{
 			Name: "gateway-proxy-tmp",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
-		},
-	)
+		})
+	}
 
 	// Tailscale volumes (state lives under /tmp so no separate state volume)
 	if instance.Spec.Tailscale.Enabled {
@@ -2079,16 +2086,19 @@ func buildChromiumResourceRequirements(instance *openclawv1alpha1.OpenClawInstan
 	return req
 }
 
-// buildHTTPProbeHandler returns an HTTP GET probe handler that hits the
-// given path on the nginx proxy sidecar port. The gateway exposes /healthz
-// (liveness) and /readyz (readiness) on 127.0.0.1:18789; the proxy sidecar
-// forwards traffic from 0.0.0.0:18790, making the endpoints reachable by
-// the kubelet.
-func buildHTTPProbeHandler(path string) corev1.ProbeHandler {
+// buildHTTPProbeHandler returns an HTTP GET probe handler. When the gateway
+// proxy sidecar is enabled, probes target the proxy port (18790) which
+// forwards to the gateway on loopback. When disabled, probes hit the
+// gateway directly on port 18789.
+func buildHTTPProbeHandler(path string, instance *openclawv1alpha1.OpenClawInstance) corev1.ProbeHandler {
+	port := int32(GatewayPort)
+	if IsGatewayProxyEnabled(instance) {
+		port = GatewayProxyPort
+	}
 	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
 			Path:   path,
-			Port:   intstr.FromInt32(GatewayProxyPort),
+			Port:   intstr.FromInt32(port),
 			Scheme: corev1.URISchemeHTTP,
 		},
 	}
@@ -2105,7 +2115,7 @@ func buildLivenessProbe(instance *openclawv1alpha1.OpenClawInstance) *corev1.Pro
 	}
 
 	probe := &corev1.Probe{
-		ProbeHandler:        buildHTTPProbeHandler("/healthz"),
+		ProbeHandler:        buildHTTPProbeHandler("/healthz", instance),
 		InitialDelaySeconds: 30,
 		PeriodSeconds:       10,
 		TimeoutSeconds:      5,
@@ -2142,7 +2152,7 @@ func buildReadinessProbe(instance *openclawv1alpha1.OpenClawInstance) *corev1.Pr
 	}
 
 	probe := &corev1.Probe{
-		ProbeHandler:        buildHTTPProbeHandler("/readyz"),
+		ProbeHandler:        buildHTTPProbeHandler("/readyz", instance),
 		InitialDelaySeconds: 5,
 		PeriodSeconds:       5,
 		TimeoutSeconds:      3,
@@ -2179,7 +2189,7 @@ func buildStartupProbe(instance *openclawv1alpha1.OpenClawInstance) *corev1.Prob
 	}
 
 	probe := &corev1.Probe{
-		ProbeHandler:        buildHTTPProbeHandler("/healthz"),
+		ProbeHandler:        buildHTTPProbeHandler("/healthz", instance),
 		InitialDelaySeconds: 5,
 		PeriodSeconds:       5,
 		TimeoutSeconds:      3,

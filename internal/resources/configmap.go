@@ -107,7 +107,11 @@ func BuildConfigMapFromBytes(instance *openclawv1alpha1.OpenClawInstance, baseCo
 
 	data := map[string]string{
 		"openclaw.json": configContent,
-		NginxConfigKey:  nginxStreamConfig(),
+	}
+
+	// Only include nginx config when the gateway proxy is enabled
+	if IsGatewayProxyEnabled(instance) {
+		data[NginxConfigKey] = nginxStreamConfig()
 	}
 
 	// Add Tailscale serve config when enabled (sidecar reads this via TS_SERVE_CONFIG)
@@ -407,12 +411,13 @@ func enrichConfigWithBrowser(configJSON []byte, instance *openclawv1alpha1.OpenC
 	return json.Marshal(config)
 }
 
-// enrichConfigWithGatewayBind injects gateway.bind=loopback into the config
-// JSON. The gateway proxy sidecar handles external access, so the gateway
-// process always binds to loopback. If the user has already set gateway.bind,
-// the config is returned unchanged (user override wins).
+// enrichConfigWithGatewayBind injects gateway.bind into the config JSON.
+// When the gateway proxy sidecar is enabled, the gateway binds to loopback
+// (the proxy handles external access). When disabled, the gateway must bind
+// to 0.0.0.0 so the kubelet and Service can reach it directly.
+// If the user has already set gateway.bind, the config is returned unchanged
+// (user override wins).
 func enrichConfigWithGatewayBind(configJSON []byte, instance *openclawv1alpha1.OpenClawInstance) ([]byte, error) {
-	_ = instance // signature kept for enrichment pipeline consistency
 	var config map[string]interface{}
 	if err := json.Unmarshal(configJSON, &config); err != nil {
 		return configJSON, nil // not a JSON object, return unchanged
@@ -428,7 +433,11 @@ func enrichConfigWithGatewayBind(configJSON []byte, instance *openclawv1alpha1.O
 		return configJSON, nil
 	}
 
-	gw["bind"] = GatewayBindLoopback
+	if IsGatewayProxyEnabled(instance) {
+		gw["bind"] = GatewayBindLoopback
+	} else {
+		gw["bind"] = GatewayBindAllInterfaces
+	}
 	config["gateway"] = gw
 
 	return json.Marshal(config)

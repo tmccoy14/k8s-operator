@@ -75,17 +75,26 @@ func buildServicePorts(instance *openclawv1alpha1.OpenClawInstance) []corev1.Ser
 		return ports
 	}
 
+	// When the gateway proxy is enabled, route through the proxy ports.
+	// When disabled, target the gateway and canvas ports directly.
+	gwTarget := int32(GatewayProxyPort)
+	canvasTarget := int32(CanvasProxyPort)
+	if !IsGatewayProxyEnabled(instance) {
+		gwTarget = int32(GatewayPort)
+		canvasTarget = int32(CanvasPort)
+	}
+
 	ports := []corev1.ServicePort{
 		{
 			Name:       "gateway",
 			Port:       int32(GatewayPort),
-			TargetPort: intstr.FromInt32(int32(GatewayProxyPort)),
+			TargetPort: intstr.FromInt32(gwTarget),
 			Protocol:   corev1.ProtocolTCP,
 		},
 		{
 			Name:       "canvas",
 			Port:       int32(CanvasPort),
-			TargetPort: intstr.FromInt32(int32(CanvasProxyPort)),
+			TargetPort: intstr.FromInt32(canvasTarget),
 			Protocol:   corev1.ProtocolTCP,
 		},
 	}

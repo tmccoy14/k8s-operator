@@ -272,6 +272,90 @@ var _ = Describe("OpenClawInstance Controller", func() {
 			Expect(k8sClient.Delete(ctx, instance)).Should(Succeed())
 		})
 
+		It("Should skip gateway proxy sidecar when disabled", func() {
+			instanceName := "proxy-disabled-instance"
+
+			if os.Getenv("E2E_SKIP_RESOURCE_VALIDATION") == "true" {
+				Skip("Skipping resource validation in minimal mode")
+			}
+
+			instance := &openclawv1alpha1.OpenClawInstance{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      instanceName,
+					Namespace: namespace,
+					Annotations: map[string]string{
+						"openclaw.rocks/skip-backup": "true",
+					},
+				},
+				Spec: openclawv1alpha1.OpenClawInstanceSpec{
+					Image: openclawv1alpha1.ImageSpec{
+						Repository: "ghcr.io/openclaw/openclaw",
+						Tag:        "latest",
+					},
+					Gateway: openclawv1alpha1.GatewaySpec{
+						Enabled: resources.Ptr(false),
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, instance)).Should(Succeed())
+
+			// Verify StatefulSet has no gateway-proxy container
+			statefulSet := &appsv1.StatefulSet{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      instanceName,
+					Namespace: namespace,
+				}, statefulSet)
+			}, timeout, interval).Should(Succeed())
+
+			for _, c := range statefulSet.Spec.Template.Spec.Containers {
+				Expect(c.Name).NotTo(Equal("gateway-proxy"),
+					"StatefulSet should not have gateway-proxy container when disabled")
+			}
+
+			// Verify probes target the gateway directly
+			mainContainer := statefulSet.Spec.Template.Spec.Containers[0]
+			Expect(mainContainer.LivenessProbe.HTTPGet.Port.IntValue()).To(Equal(int(resources.GatewayPort)),
+				"liveness probe should target gateway port directly")
+			Expect(mainContainer.ReadinessProbe.HTTPGet.Port.IntValue()).To(Equal(int(resources.GatewayPort)),
+				"readiness probe should target gateway port directly")
+
+			// Verify Service targetPort points to direct ports
+			service := &corev1.Service{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      instanceName,
+					Namespace: namespace,
+				}, service)
+			}, timeout, interval).Should(Succeed())
+
+			for _, port := range service.Spec.Ports {
+				if port.Name == "gateway" {
+					Expect(port.TargetPort.IntValue()).To(Equal(int(resources.GatewayPort)),
+						"gateway targetPort should point to direct port")
+				}
+				if port.Name == "canvas" {
+					Expect(port.TargetPort.IntValue()).To(Equal(int(resources.CanvasPort)),
+						"canvas targetPort should point to direct port")
+				}
+			}
+
+			// Verify ConfigMap does not have nginx.conf key
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      resources.ConfigMapName(instance),
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(configMap.Data).NotTo(HaveKey(resources.NginxConfigKey),
+				"ConfigMap should not contain nginx.conf key when proxy is disabled")
+
+			Expect(k8sClient.Delete(ctx, instance)).Should(Succeed())
+		})
+
 		It("Should use shell-capable image for merge mode init container", func() {
 			instanceName := "merge-mode-instance"
 

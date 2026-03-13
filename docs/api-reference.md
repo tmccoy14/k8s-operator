@@ -420,7 +420,7 @@ spec:
 |------------|-----------------|---------|---------------------------------------------------------------------------------------------------|
 | `sidecars` | `[]Container`   | --      | Additional sidecar containers to inject into the pod. Use for custom sidecars like database proxies, log forwarders, or service meshes. |
 
-Standard Kubernetes `Container` spec. Sidecar containers run alongside the main OpenClaw container.
+Standard Kubernetes `Container` spec. Sidecar containers run alongside the main OpenClaw container. If your sidecar replaces the built-in gateway proxy, set `spec.gateway.enabled: false` to avoid running both.
 
 ```yaml
 spec:
@@ -801,6 +801,7 @@ Configures the gateway authentication token and Control UI origins.
 
 | Field              | Type       | Default | Description                                                                                       |
 |--------------------|------------|---------|---------------------------------------------------------------------------------------------------|
+| `enabled`          | `*bool`    | `true`  | Enable the gateway reverse proxy (nginx) sidecar. When disabled, the gateway binds to `0.0.0.0` and probes/Service target it directly. |
 | `existingSecret`   | `string`   | --      | Name of a user-managed Secret containing the gateway token. The Secret must have a key named `token`. When set, the operator skips auto-generating a gateway token Secret and uses this Secret instead. |
 | `controlUiOrigins` | `[]string` | --      | Additional allowed origins for the Control UI. The operator always auto-injects `http://localhost:18789` and `http://127.0.0.1:18789` (for port-forwarding) and derives origins from ingress hosts. Use this field to add extra origins (e.g., custom reverse proxy URLs). Max 20 items. |
 
