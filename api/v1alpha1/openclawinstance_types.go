@@ -509,6 +509,16 @@ type BackupSpec struct {
 	// When set, all backup Jobs (pre-delete, pre-update, periodic, and restore) use this SA.
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// RetentionDays is the number of days to keep daily snapshots in S3.
+	// The periodic backup syncs incrementally to a fixed "latest" path and
+	// takes a daily snapshot. Snapshots older than RetentionDays are pruned
+	// after each successful backup.
+	// +kubebuilder:default=7
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=365
+	// +optional
+	RetentionDays *int32 `json:"retentionDays,omitempty"`
 }
 
 // ChromiumSpec defines the Chromium sidecar configuration

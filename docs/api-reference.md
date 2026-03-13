@@ -743,13 +743,27 @@ Configures periodic scheduled backups to S3-compatible storage. Requires the `s3
 | `failedHistoryLimit` | `*int32` | `1`     | Number of failed CronJob runs to retain.                                                           |
 | `timeout`            | `string` | `30m`   | Maximum duration to wait for a pre-delete backup to complete before giving up and proceeding with deletion (Go duration string, e.g. `"30m"`, `"1h"`). Covers all phases: StatefulSet scale-down, pod termination, Job execution, and Job failure retries. Minimum: `5m`, Maximum: `24h`. |
 | `serviceAccountName` | `string` | --      | ServiceAccount to use for backup and restore Jobs. Set this to an IRSA-annotated or Pod Identity-enabled ServiceAccount so Jobs authenticate via the AWS credential chain instead of static credentials. Applies to all backup Jobs (pre-delete, pre-update, periodic, and restore). |
+| `retentionDays`      | `*int32` | `7`     | Number of days to keep daily snapshots in S3. Snapshots older than this are pruned after each successful backup. Minimum: `1`, Maximum: `365`. |
 
-The CronJob mounts the PVC read-only (hot backup - no downtime) and uses pod affinity to schedule on the same node as the StatefulSet pod (required for RWO PVCs). Each run stores data under a unique timestamped path: `backups/<tenantId>/<instanceName>/periodic/<timestamp>`.
+The CronJob mounts the PVC read-only (hot backup - no downtime) and uses pod affinity to schedule on the same node as the StatefulSet pod (required for RWO PVCs).
+
+Periodic backups use an incremental sync strategy to minimize S3 transactions and storage costs:
+
+1. **Incremental sync** to a fixed `latest` path - only uploads changed files
+2. **Daily snapshot** - copies `latest` to `snapshots/YYYY-MM-DD` (near-free if today's snapshot already exists)
+3. **Retention cleanup** - prunes snapshots older than `retentionDays`
+
+S3 path structure:
+```
+backups/<tenantId>/<instanceName>/periodic/latest/              # incrementally synced
+backups/<tenantId>/<instanceName>/periodic/snapshots/2026-03-13/ # daily snapshot (auto-pruned)
+```
 
 ```yaml
 spec:
   backup:
     schedule: "0 2 * * *"   # Daily at 2 AM UTC
+    retentionDays: 7         # Keep 7 days of daily snapshots (default)
     historyLimit: 5          # Keep last 5 successful runs
     failedHistoryLimit: 2    # Keep last 2 failed runs
     timeout: "30m"           # Max time for pre-delete backup (default: 30m)

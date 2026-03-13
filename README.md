@@ -704,13 +704,14 @@ If the Secret does not exist, backups are silently skipped and operations procee
 spec:
   backup:
     schedule: "0 2 * * *"   # Daily at 2 AM UTC
+    retentionDays: 7         # Keep 7 days of daily snapshots (default)
     historyLimit: 3          # Successful job runs to retain (default: 3)
     failedHistoryLimit: 1    # Failed job runs to retain (default: 1)
     timeout: "30m"           # Max time for pre-delete backup (default: 30m, min: 5m, max: 24h)
     serviceAccountName: ""   # Optional: IRSA/Pod Identity SA for backup Jobs
 ```
 
-The operator creates a Kubernetes CronJob that runs rclone to sync PVC data to S3. The CronJob mounts the PVC read-only (hot backup - no downtime) and uses pod affinity to co-locate on the same node as the StatefulSet pod (required for RWO PVCs). Each run stores data under a unique timestamped path: `backups/<tenantId>/<instanceName>/periodic/<timestamp>`.
+The operator creates a Kubernetes CronJob that runs rclone to sync PVC data to S3. The CronJob mounts the PVC read-only (hot backup - no downtime) and uses pod affinity to co-locate on the same node as the StatefulSet pod (required for RWO PVCs). Backups use an incremental sync strategy: data is synced to a fixed `latest` path (only changed files uploaded), a daily snapshot is taken, and snapshots older than `retentionDays` are automatically pruned.
 
 **Restoring from backup:**
 
