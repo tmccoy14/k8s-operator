@@ -9954,6 +9954,40 @@ func TestBuildNetworkPolicy_DefaultUsesProxyPorts(t *testing.T) {
 	}
 }
 
+func TestBuildNetworkPolicy_GatewayProxyDisabled_UsesDirectPorts(t *testing.T) {
+	instance := newTestInstance("np-no-proxy")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	np := BuildNetworkPolicy(instance)
+
+	if len(np.Spec.Ingress) == 0 {
+		t.Fatal("expected at least one ingress rule")
+	}
+
+	ports := np.Spec.Ingress[0].Ports
+	foundGW := false
+	foundCanvas := false
+	for _, p := range ports {
+		if p.Port != nil {
+			switch p.Port.IntValue() {
+			case int(GatewayPort):
+				foundGW = true
+			case int(CanvasPort):
+				foundCanvas = true
+			case int(GatewayProxyPort):
+				t.Errorf("NetworkPolicy should not allow proxy port %d when proxy is disabled", GatewayProxyPort)
+			case int(CanvasProxyPort):
+				t.Errorf("NetworkPolicy should not allow proxy port %d when proxy is disabled", CanvasProxyPort)
+			}
+		}
+	}
+	if !foundGW {
+		t.Errorf("NetworkPolicy should allow port %d (direct gateway)", GatewayPort)
+	}
+	if !foundCanvas {
+		t.Errorf("NetworkPolicy should allow port %d (direct canvas)", CanvasPort)
+	}
+}
+
 func TestHtpasswdEntry_Format(t *testing.T) {
 	entry := HtpasswdEntry("admin", "secret")
 	if !strings.HasPrefix(entry, "admin:{SHA}") {
@@ -10947,6 +10981,143 @@ func TestBuildConfigMap_NoChromiumProxyWhenDisabled(t *testing.T) {
 	cm := BuildConfigMap(instance, "", nil)
 	if _, ok := cm.Data[ChromiumProxyNginxConfigKey]; ok {
 		t.Error("ConfigMap should not contain chromium proxy config when chromium is disabled")
+	}
+}
+
+// --- Gateway proxy disabled tests ---
+
+func TestBuildStatefulSet_GatewayProxyDisabled_NoProxyContainer(t *testing.T) {
+	instance := newTestInstance("gw-disabled")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	sts := BuildStatefulSet(instance, "", nil)
+
+	for _, c := range sts.Spec.Template.Spec.Containers {
+		if c.Name == "gateway-proxy" {
+			t.Fatal("gateway-proxy container should not be present when disabled")
+		}
+	}
+}
+
+func TestBuildStatefulSet_GatewayProxyDisabled_NoProxyTmpVolume(t *testing.T) {
+	instance := newTestInstance("gw-disabled-vol")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	sts := BuildStatefulSet(instance, "", nil)
+
+	for _, v := range sts.Spec.Template.Spec.Volumes {
+		if v.Name == "gateway-proxy-tmp" {
+			t.Fatal("gateway-proxy-tmp volume should not be present when proxy is disabled")
+		}
+	}
+}
+
+func TestBuildStatefulSet_GatewayProxyDisabled_ProbesTargetGatewayPort(t *testing.T) {
+	instance := newTestInstance("gw-disabled-probes")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	sts := BuildStatefulSet(instance, "", nil)
+
+	var main *corev1.Container
+	for i := range sts.Spec.Template.Spec.Containers {
+		if sts.Spec.Template.Spec.Containers[i].Name == "openclaw" {
+			main = &sts.Spec.Template.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatal("openclaw container not found")
+	}
+
+	if main.LivenessProbe == nil || main.LivenessProbe.HTTPGet == nil {
+		t.Fatal("liveness probe should be configured")
+	}
+	if main.LivenessProbe.HTTPGet.Port.IntValue() != int(GatewayPort) {
+		t.Errorf("liveness probe port = %d, want %d (direct gateway port)", main.LivenessProbe.HTTPGet.Port.IntValue(), GatewayPort)
+	}
+
+	if main.ReadinessProbe == nil || main.ReadinessProbe.HTTPGet == nil {
+		t.Fatal("readiness probe should be configured")
+	}
+	if main.ReadinessProbe.HTTPGet.Port.IntValue() != int(GatewayPort) {
+		t.Errorf("readiness probe port = %d, want %d (direct gateway port)", main.ReadinessProbe.HTTPGet.Port.IntValue(), GatewayPort)
+	}
+
+	if main.StartupProbe == nil || main.StartupProbe.HTTPGet == nil {
+		t.Fatal("startup probe should be configured")
+	}
+	if main.StartupProbe.HTTPGet.Port.IntValue() != int(GatewayPort) {
+		t.Errorf("startup probe port = %d, want %d (direct gateway port)", main.StartupProbe.HTTPGet.Port.IntValue(), GatewayPort)
+	}
+}
+
+func TestBuildStatefulSet_GatewayProxyEnabled_ProbesTargetProxyPort(t *testing.T) {
+	instance := newTestInstance("gw-enabled-probes")
+	// Default (nil) means enabled
+	sts := BuildStatefulSet(instance, "", nil)
+
+	var main *corev1.Container
+	for i := range sts.Spec.Template.Spec.Containers {
+		if sts.Spec.Template.Spec.Containers[i].Name == "openclaw" {
+			main = &sts.Spec.Template.Spec.Containers[i]
+			break
+		}
+	}
+	if main == nil {
+		t.Fatal("openclaw container not found")
+	}
+
+	if main.LivenessProbe == nil || main.LivenessProbe.HTTPGet == nil {
+		t.Fatal("liveness probe should be configured")
+	}
+	if main.LivenessProbe.HTTPGet.Port.IntValue() != int(GatewayProxyPort) {
+		t.Errorf("liveness probe port = %d, want %d (proxy port)", main.LivenessProbe.HTTPGet.Port.IntValue(), GatewayProxyPort)
+	}
+}
+
+func TestBuildService_GatewayProxyDisabled_TargetsDirectPorts(t *testing.T) {
+	instance := newTestInstance("svc-no-proxy")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	svc := BuildService(instance)
+
+	for _, port := range svc.Spec.Ports {
+		switch port.Name {
+		case "gateway":
+			if port.TargetPort.IntValue() != int(GatewayPort) {
+				t.Errorf("gateway targetPort = %d, want %d (direct port)", port.TargetPort.IntValue(), GatewayPort)
+			}
+		case "canvas":
+			if port.TargetPort.IntValue() != int(CanvasPort) {
+				t.Errorf("canvas targetPort = %d, want %d (direct port)", port.TargetPort.IntValue(), CanvasPort)
+			}
+		}
+	}
+}
+
+func TestBuildConfigMap_GatewayProxyDisabled_NoNginxConfig(t *testing.T) {
+	instance := newTestInstance("cm-no-proxy")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	cm := BuildConfigMap(instance, "", nil)
+
+	if _, ok := cm.Data[NginxConfigKey]; ok {
+		t.Error("ConfigMap should not contain nginx config when gateway proxy is disabled")
+	}
+}
+
+func TestBuildConfigMap_GatewayProxyDisabled_BindsAllInterfaces(t *testing.T) {
+	instance := newTestInstance("cm-no-proxy-bind")
+	instance.Spec.Gateway.Enabled = Ptr(false)
+	cm := BuildConfigMap(instance, "", nil)
+
+	content := cm.Data["openclaw.json"]
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("failed to parse config JSON: %v", err)
+	}
+
+	gw, ok := parsed["gateway"].(map[string]interface{})
+	if !ok {
+		t.Fatal("gateway section not found in config")
+	}
+	if gw["bind"] != GatewayBindAllInterfaces {
+		t.Errorf("gateway.bind = %v, want %q (direct access when proxy disabled)", gw["bind"], GatewayBindAllInterfaces)
 	}
 }
 

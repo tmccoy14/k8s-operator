@@ -3603,6 +3603,14 @@ spec:
                       type: string
                     maxItems: 20
                     type: array
+                  enabled:
+                    default: true
+                    description: |-
+                      Enabled controls whether the built-in gateway reverse proxy sidecar is
+                      injected into the pod. When false, no proxy container is added and health
+                      probes target the OpenClaw gateway directly on port 18789.
+                      Defaults to true.
+                    type: boolean
                   existingSecret:
                     description: |-
                       ExistingSecret is the name of a user-managed Secret containing the gateway token.

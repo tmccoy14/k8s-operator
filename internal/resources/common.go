@@ -132,6 +132,11 @@ const (
 	// CWE-319 plaintext ws:// errors on non-loopback addresses.
 	GatewayBindLoopback = "loopback"
 
+	// GatewayBindAllInterfaces is the bind value when the gateway proxy sidecar
+	// is disabled. The gateway must bind to all interfaces so the kubelet and
+	// Service can reach it directly.
+	GatewayBindAllInterfaces = "0.0.0.0"
+
 	// DefaultMetricsPort is the default port for the Prometheus metrics endpoint
 	DefaultMetricsPort int32 = 9090
 )
@@ -307,6 +312,12 @@ func GetTailscaleImage(instance *openclawv1alpha1.OpenClawInstance) string {
 		image = repo + ":" + tag
 	}
 	return ApplyRegistryOverride(image, instance.Spec.Registry)
+}
+
+// IsGatewayProxyEnabled returns true if the built-in gateway reverse proxy
+// sidecar should be injected. Defaults to true when not explicitly set.
+func IsGatewayProxyEnabled(instance *openclawv1alpha1.OpenClawInstance) bool {
+	return instance.Spec.Gateway.Enabled == nil || *instance.Spec.Gateway.Enabled
 }
 
 // IsMetricsEnabled returns true if the metrics endpoint is enabled for the instance
