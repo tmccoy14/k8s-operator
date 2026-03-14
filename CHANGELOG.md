@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1](https://github.com/openclaw-rocks/k8s-operator/compare/v0.18.0...v0.18.1) (2026-03-14)
+
+
+### Bug Fixes
+
+* **chromium:** route CDP traffic through proxy instead of bypassing it ([795920b](https://github.com/openclaw-rocks/k8s-operator/commit/795920ba08dcf4f3856bcf86d783bbb99047d9a5))
+* **chromium:** route CDP traffic through proxy instead of bypassing it ([c8b3a01](https://github.com/openclaw-rocks/k8s-operator/commit/c8b3a010b2954889f7722b82404610772c555c5b)), closes [#270](https://github.com/openclaw-rocks/k8s-operator/issues/270)
+* increase main container startup probe timeout to 300s ([1aad438](https://github.com/openclaw-rocks/k8s-operator/commit/1aad4389a1cb13f43522e3238606417be7b6b5aa))
+* increase main container startup probe timeout to 300s ([59c81cd](https://github.com/openclaw-rocks/k8s-operator/commit/59c81cdcc72cdb0bb096fd222a77f64940f44ebd)), closes [#344](https://github.com/openclaw-rocks/k8s-operator/issues/344)
+
 ## [0.18.0](https://github.com/openclaw-rocks/k8s-operator/compare/v0.17.0...v0.18.0) (2026-03-14)
 
 
