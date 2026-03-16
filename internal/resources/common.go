@@ -137,7 +137,9 @@ const (
 
 	// GatewayBindAllInterfaces is the bind value when the gateway proxy sidecar
 	// is disabled. The gateway must bind to all interfaces so the kubelet and
-	// Service can reach it directly.
+	// Service can reach it directly. Note: OpenClaw's gateway.bind accepts both
+	// mode keywords ("loopback") and raw IPs ("0.0.0.0", "127.0.0.1"). There
+	// is no "all" keyword, so a raw IP is required here.
 	GatewayBindAllInterfaces = "0.0.0.0"
 
 	// DefaultMetricsPort is the default port for the Prometheus metrics endpoint
