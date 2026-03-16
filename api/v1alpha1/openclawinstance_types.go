@@ -136,7 +136,7 @@ type OpenClawInstanceSpec struct {
 	// +optional
 	RuntimeDeps RuntimeDepsSpec `json:"runtimeDeps,omitempty"`
 
-	// Gateway configures the gateway authentication token
+	// Gateway configures the gateway reverse proxy and authentication token
 	// +optional
 	Gateway GatewaySpec `json:"gateway,omitempty"`
 
