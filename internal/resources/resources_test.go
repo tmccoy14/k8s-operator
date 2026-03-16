@@ -10312,6 +10312,17 @@ func TestHasGatewayBindConflict(t *testing.T) {
 		}
 	})
 
+	t.Run("conflict when proxy disabled and bind is raw 127.0.0.1", func(t *testing.T) {
+		instance := newTestInstance("gw-conflict-raw-lo")
+		instance.Spec.Gateway.Enabled = Ptr(false)
+		instance.Spec.Config.Raw = &openclawv1alpha1.RawConfig{
+			RawExtension: runtime.RawExtension{Raw: []byte(`{"gateway":{"bind":"127.0.0.1"}}`)},
+		}
+		if !HasGatewayBindConflict(instance) {
+			t.Error("should report conflict when proxy is disabled and bind is 127.0.0.1")
+		}
+	})
+
 	t.Run("no conflict when proxy disabled and bind is 0.0.0.0", func(t *testing.T) {
 		instance := newTestInstance("gw-conflict-allif")
 		instance.Spec.Gateway.Enabled = Ptr(false)

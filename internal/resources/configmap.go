@@ -472,7 +472,7 @@ func HasGatewayBindConflict(instance *openclawv1alpha1.OpenClawInstance) bool {
 		return false
 	}
 	bindStr, ok := bind.(string)
-	return ok && bindStr == GatewayBindLoopback
+	return ok && (bindStr == GatewayBindLoopback || bindStr == "127.0.0.1")
 }
 
 // enrichConfigWithTrustedProxies ensures 127.0.0.0/8 is present in
