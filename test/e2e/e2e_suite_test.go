@@ -353,6 +353,14 @@ var _ = Describe("OpenClawInstance Controller", func() {
 			Expect(configMap.Data).NotTo(HaveKey(resources.NginxConfigKey),
 				"ConfigMap should not contain nginx.conf key when proxy is disabled")
 
+			// Verify gateway.bind is 0.0.0.0 in openclaw.json
+			var parsed map[string]interface{}
+			Expect(json.Unmarshal([]byte(configMap.Data["openclaw.json"]), &parsed)).Should(Succeed())
+			gw, ok := parsed["gateway"].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "config should have gateway key")
+			Expect(gw["bind"]).To(Equal(resources.GatewayBindAllInterfaces),
+				"gateway.bind should be 0.0.0.0 when proxy is disabled")
+
 			Expect(k8sClient.Delete(ctx, instance)).Should(Succeed())
 		})
 
