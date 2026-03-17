@@ -666,8 +666,8 @@ Metrics and logging configuration.
 
 | Field                       | Type                | Default | Description                                   |
 |-----------------------------|---------------------|---------|-----------------------------------------------|
-| `enabled`                   | `*bool`             | `true`  | Enable the metrics endpoint on the managed instance. When enabled, the operator injects `diagnostics.metrics.enabled=true` and `diagnostics.metrics.port` into the OpenClaw config so the application serves a Prometheus scrape endpoint on the configured port. |
-| `port`                      | `*int32`            | `9090`  | Metrics port. Injected into the OpenClaw config as `diagnostics.metrics.port`. |
+| `enabled`                   | `*bool`             | `true`  | Enable the metrics pipeline. When enabled, the operator injects `diagnostics.otel` config into OpenClaw to push OTLP metrics, adds an OTel Collector sidecar that exposes a Prometheus scrape endpoint, and creates the Service port and NetworkPolicy ingress rule. |
+| `port`                      | `*int32`            | `9090`  | Prometheus metrics port exposed by the OTel Collector sidecar. Used for the Service port and ServiceMonitor target. |
 | `serviceMonitor.enabled`    | `*bool`             | `false` | Create a Prometheus `ServiceMonitor`.         |
 | `serviceMonitor.interval`   | `string`            | `30s`   | Prometheus scrape interval.                   |
 | `serviceMonitor.labels`     | `map[string]string` | --      | Labels to add to the ServiceMonitor (for Prometheus selector matching). |
