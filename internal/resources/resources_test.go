@@ -1356,7 +1356,7 @@ func TestBuildStatefulSet_EnvAndEnvFrom(t *testing.T) {
 	main := sts.Spec.Template.Spec.Containers[0]
 
 	names := envNames(main.Env)
-	expectedPrefix := []string{"HOME", "OPENCLAW_DISABLE_BONJOUR", "NPM_CONFIG_PREFIX", "NPM_CONFIG_CACHE", "PIP_USER"}
+	expectedPrefix := []string{"HOME", "OPENCLAW_DISABLE_BONJOUR", "OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS", "NPM_CONFIG_PREFIX", "NPM_CONFIG_CACHE", "PIP_USER"}
 	for i, want := range expectedPrefix {
 		if i >= len(names) || names[i] != want {
 			t.Fatalf("env vars should start with %v, got %v", expectedPrefix, names)
@@ -2618,6 +2618,56 @@ func TestEnrichConfigWithDeviceAuth_InvalidJSON(t *testing.T) {
 
 	if !bytes.Equal(out, input) {
 		t.Errorf("invalid JSON should be returned unchanged")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Handshake timeout env var tests
+// ---------------------------------------------------------------------------
+
+func TestHandshakeTimeoutEnvVar(t *testing.T) {
+	instance := newTestInstance("handshake-test")
+	env := buildMainEnv(instance, "test-token-secret")
+	want := fmt.Sprintf("%d", DefaultHandshakeTimeoutMs)
+
+	var found bool
+	for _, e := range env {
+		if e.Name == "OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS" {
+			found = true
+			if e.Value != want {
+				t.Errorf("OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS = %q, want %q", e.Value, want)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS env var not found")
+	}
+}
+
+func TestHandshakeTimeoutEnvVar_UserOverrideWins(t *testing.T) {
+	instance := newTestInstance("handshake-override")
+	instance.Spec.Env = []corev1.EnvVar{
+		{Name: "OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS", Value: "5000"},
+	}
+	sts := BuildStatefulSet(instance, "test-token-secret", nil)
+	mainContainer := sts.Spec.Template.Spec.Containers[0]
+
+	var count int
+	var lastValue string
+	for _, e := range mainContainer.Env {
+		if e.Name == "OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS" {
+			count++
+			lastValue = e.Value
+		}
+	}
+	// User env vars are appended after operator defaults; K8s uses the
+	// last value when duplicates exist, so the user's value wins.
+	if lastValue != "5000" {
+		t.Errorf("last OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS = %q, want 5000 (user override)", lastValue)
+	}
+	if count < 1 {
+		t.Error("OPENCLAW_GATEWAY_HANDSHAKE_TIMEOUT_MS env var not found")
 	}
 }
 
